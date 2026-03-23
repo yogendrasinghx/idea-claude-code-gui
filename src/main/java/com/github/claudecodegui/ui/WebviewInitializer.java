@@ -1,8 +1,8 @@
 package com.github.claudecodegui.ui;
 
-import com.github.claudecodegui.ClaudeCodeGuiBundle;
+import com.github.claudecodegui.i18n.ClaudeCodeGuiBundle;
 import com.github.claudecodegui.bridge.NodeDetector;
-import com.github.claudecodegui.handler.HandlerContext;
+import com.github.claudecodegui.handler.core.HandlerContext;
 import com.github.claudecodegui.provider.claude.ClaudeSDKBridge;
 import com.github.claudecodegui.provider.codex.CodexSDKBridge;
 import com.github.claudecodegui.startup.BridgePreloader;
@@ -297,6 +297,24 @@ public class WebviewInitializer {
                     );
                     cefBrowser.executeJavaScript(languageConfigInjection, cefBrowser.getURL(), 0);
                     LOG.info("[LanguageSync] Language config injected into frontend");
+
+                    // Fix cursor display in JCEF on macOS: track CSS cursor changes via JS
+                    // and send them to Java through the bridge. JCEF native rendering on macOS
+                    // does not propagate CSS cursor styles to the host Swing component.
+                    String cursorTracker =
+                        "(function() {"
+                        + "  var lastCursor = '';"
+                        + "  document.addEventListener('mousemove', function(e) {"
+                        + "    var c = window.getComputedStyle(e.target).cursor;"
+                        + "    if (c !== lastCursor) {"
+                        + "      lastCursor = c;"
+                        + "      if (window.sendToJava) {"
+                        + "        window.sendToJava('cursor_change:' + c);"
+                        + "      }"
+                        + "    }"
+                        + "  }, {passive: true});"
+                        + "})();";
+                    cefBrowser.executeJavaScript(cursorTracker, cefBrowser.getURL(), 0);
 
                     LOG.debug("onLoadEnd completed, waiting for frontend_ready signal");
                 }
